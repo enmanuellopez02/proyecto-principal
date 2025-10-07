@@ -15,39 +15,41 @@ jobs:
       - name: Add Jira link to PR body
         env:
           JIRA_BASE_URL: https://tiendamia-dev.atlassian.net
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Analizando título del PR: $PR_TITLE"
+          echo "Analizando título del PR..."
 
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          REPO="${{ github.repository }}"
+          GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+
+          echo "Título detectado: $PR_TITLE"
+
+          # Buscar ticket tipo TP-1234
           if [[ "$PR_TITLE" =~ ([A-Z]+-[0-9]+) ]]; then
             TICKET_ID="${BASH_REMATCH[1]}"
             echo "Ticket detectado: $TICKET_ID"
 
             JIRA_LINK="🔗 Jira: [$TICKET_ID](${JIRA_BASE_URL}/browse/${TICKET_ID})"
 
-            # Verifica si ya existe el ticket en el cuerpo
+            # Verificar si ya está presente en el cuerpo
             if [[ "$PR_BODY" != *"$TICKET_ID"* ]]; then
-              # Agregar el link al inicio con doble salto de línea
-              NEW_BODY="$JIRA_LINK
+              # Concatenar nuevo cuerpo con doble salto de línea
+              NEW_BODY="$JIRA_LINK\n\n$PR_BODY"
 
-$PR_BODY"
-
-              # Escapar correctamente el string JSON con jq
+              # Escapar correctamente para JSON
               PAYLOAD=$(jq -nc --arg body "$NEW_BODY" '{body: $body}')
 
-              echo "Actualizando descripción del PR..."
+              echo "Actualizando PR con nuevo cuerpo..."
               curl -s -X PATCH \
-                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "Accept: application/vnd.github+json" \
                 https://api.github.com/repos/$REPO/pulls/$PR_NUMBER \
                 -d "$PAYLOAD"
             else
-              echo "El link a Jira ya está en la descripción del PR."
+              echo "Ya existe el link en el cuerpo del PR."
             fi
           else
-            echo "No se detectó ningún ticket de Jira en el título."
+            echo "No se encontró ningún ticket de Jira en el título."
           fi
