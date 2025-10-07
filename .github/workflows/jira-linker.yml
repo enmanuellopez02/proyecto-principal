@@ -37,9 +37,9 @@ jobs:
               # Concatenar nuevo cuerpo con doble salto de línea
               NEW_BODY="$JIRA_LINK
 
-$PR_BODY"
+              $PR_BODY"
 
-              # Escapar correctamente el string para JSON
+              # Escapar correctamente para JSON
               PAYLOAD=$(jq -nc --arg body "$NEW_BODY" '{body: $body}')
 
               echo "Actualizando PR con nuevo cuerpo..."
