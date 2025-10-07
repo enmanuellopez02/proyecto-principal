@@ -1,50 +1,48 @@
-name: Jira Ticket Linker
+name: Add Jira Link to PR Body
 
 on:
   pull_request:
     types: [opened, edited]
 
 jobs:
-  link-jira:
+  add-jira-link:
     runs-on: ubuntu-latest
 
     permissions:
-      pull-requests: write  # Necesario para editar el título del PR
+      pull-requests: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Extract and link Jira ticket
+      - name: Add Jira link to PR body
         env:
-          JIRA_BASE_URL: https://tiendamia-dev.atlassian.net
+          JIRA_BASE_URL: https://tiendamia-dev.atlassian.net  # Cambia esta URL si es necesario
           PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "PR title: $PR_TITLE"
+          echo "Analizando título del PR: $PR_TITLE"
 
-          # Buscar un ticket JIRA como ABC-123 (puedes ajustar la regex a tu clave de proyecto)
           if [[ "$PR_TITLE" =~ ([A-Z]+-[0-9]+) ]]; then
             TICKET_ID="${BASH_REMATCH[1]}"
-            echo "Encontrado ticket: $TICKET_ID"
+            echo "Ticket detectado: $TICKET_ID"
 
-            # Construir nuevo título si no tiene el link
-            if [[ "$PR_TITLE" != *"[$TICKET_ID]"* ]]; then
-              LINKED_TITLE="${PR_TITLE//$TICKET_ID/[$TICKET_ID](${JIRA_BASE_URL}/browse/${TICKET_ID})}"
+            JIRA_LINK="🔗 Jira: [$TICKET_ID](${JIRA_BASE_URL}/browse/${TICKET_ID})"
 
-              echo "Nuevo título: $LINKED_TITLE"
+            # Evitar duplicados si ya existe el link
+            if [[ "$PR_BODY" != *"$TICKET_ID"* ]]; then
+              NEW_BODY="${JIRA_LINK}\n\n$PR_BODY"
+              
+              echo "Actualizando descripción del PR..."
 
-              # Llamar a la API de GitHub para actualizar el título del PR
               curl -s -X PATCH \
                 -H "Authorization: token $GITHUB_TOKEN" \
                 -H "Accept: application/vnd.github+json" \
                 https://api.github.com/repos/$REPO/pulls/$PR_NUMBER \
-                -d "$(jq -nc --arg title "$LINKED_TITLE" '{title: $title}')"
+                -d "$(jq -nc --arg body "$NEW_BODY" '{body: $body}')"
             else
-              echo "El título ya contiene un enlace."
+              echo "El link a Jira ya está en la descripción del PR."
             fi
           else
-            echo "No se encontró ningún ticket de Jira en el título."
+            echo "No se detectó ningún ticket de Jira en el título."
           fi
